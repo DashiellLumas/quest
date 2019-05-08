@@ -6,10 +6,10 @@ pipeline {
   stages {
       stage('TF Plan'){
           steps {
-              container('terraform') {
+            //   container('terraform') {
                   sh 'terraform init'
                   sh 'terraform plan'
-              }
+            //   }
           }
       }
       stage('Approval'){
@@ -21,9 +21,9 @@ pipeline {
       }
       stage('TF Apply'){
           steps {
-              container('terraform'){
+            //   container('terraform'){
                   sh 'terraform apply'
-              }
+            //   }
           }
       }
   }
