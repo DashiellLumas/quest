@@ -31,7 +31,7 @@ pipeline {
       stage('TF Apply'){
           steps {
             //   container('terraform'){
-                  sh 'terraform apply -input=false'
+                  sh 'terraform apply -auto-approve'
             //   }
           }
       }
