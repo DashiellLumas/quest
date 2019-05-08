@@ -31,7 +31,7 @@ pipeline {
       stage('TF Apply'){
           steps {
             //   container('terraform'){
-                  sh 'terraform apply'
+                  sh 'terraform apply -input=false'
             //   }
           }
       }
