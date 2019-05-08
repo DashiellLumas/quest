@@ -1,0 +1,325 @@
+Mappings:
+  SubnetConfig:
+    VPC:
+      CIDR: 10.0.0.0/16
+    PublicSubnet1:
+      CIDR: 10.0.0.0/24
+      AZ: us-east-2a
+    PublicSubnet2:
+      CIDR: 10.0.1.0/24
+      AZ: us-east-2b
+Parameters:
+  ServiceName:
+    Type: String
+    Default: dashielllumas-quest
+  ContainerPort:
+    Type: Number
+    Default: 80
+  ContainerCpu:
+    Type: Number
+    Default: 256
+  ContainerMemory:
+    Type: Number
+    Default: 512
+  ImageUrl:
+    Type: String
+    Default: '581656899580.dkr.ecr.us-east-2.amazonaws.com/dash-quest-app:latest'
+  Route53ZoneName:
+    Type: String
+    Default: dashielllumas-origin
+  Route53HostedZoneID:
+    Type: String
+    Default: Z1BEOO2A5FWP1D
+  Route53Prefix:
+    Type: String
+    Default: dashielllumas
+  Route53HostedZoneDomainName:
+    Type: String
+    Default: quest.rearc.io.
+  LoadBalancerScheme:
+    Type: String
+    Description: Load Balancer Scheme
+    Default: internet-facing
+  LoadBalancerType:
+    Type: String
+    Description: Application or network load balancer
+    Default: application
+  LoadBalancerIPType:
+    Type: String
+    Description: IPV4 or IPV6 for load balancer IP address type
+    Default: ipv4
+Resources:
+  VPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      CidrBlock: !FindInMap 
+        - SubnetConfig
+        - VPC
+        - CIDR
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackName'
+        - Key: Network
+          Value: Public
+  PublicSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !FindInMap 
+        - SubnetConfig
+        - PublicSubnet1
+        - AZ
+      CidrBlock: !FindInMap 
+        - SubnetConfig
+        - PublicSubnet1
+        - CIDR
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackName'
+        - Key: Network
+          Value: Public
+  PublicSubnet2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !FindInMap 
+        - SubnetConfig
+        - PublicSubnet2
+        - AZ
+      CidrBlock: !FindInMap 
+        - SubnetConfig
+        - PublicSubnet2
+        - CIDR
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackName'
+        - Key: Network
+          Value: Public
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackName'
+        - Key: Network
+          Value: Public
+  GatewayToInternet:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+  PublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackName'
+        - Key: Network
+          Value: Public
+  PublicRoute:
+    Type: 'AWS::EC2::Route'
+    DependsOn: GatewayToInternet
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  PublicSubnet1RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+  PublicSubnet2RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+  Cluster:
+    Type: 'AWS::ECS::Cluster'
+    Properties:
+      ClusterName: dashielllumas-quest-cluster
+  ECSTaskExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: AmazonEC2ContainerServiceforEC2RolePolicy
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ecs:CreateCluster'
+                  - 'ecs:DeregisterContainerInstance'
+                  - 'ecs:DiscoverPollEndpoint'
+                  - 'ecs:Poll'
+                  - 'ecs:RegisterContainerInstance'
+                  - 'ecs:StartTelemetrySession'
+                  - 'ecs:Submit*'
+                  - 'ecr:GetAuthorizationToken'
+                  - 'ecr:BatchCheckLayerAvailability'
+                  - 'ecr:GetDownloadUrlForLayer'
+                  - 'ecr:BatchGetImage'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: '*'
+      RoleName: DashECSTaskExecutionRole
+  TaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      Family: !Ref ServiceName
+      Cpu: !Ref ContainerCpu
+      Memory: !Ref ContainerMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ContainerDefinitions:
+        - Name: !Ref ServiceName
+          Cpu: !Ref ContainerCpu
+          Memory: !Ref ContainerMemory
+          Image: !Ref ImageUrl
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+          TaskRoleARN: 'arn:aws:iam::581656899580:role/DashECSTaskExecutionRole'
+          ExecutionRoleArn: 'arn:aws:iam::581656899580:role/DashECSTaskExecutionRole'
+  ApplicationLoadBalancer:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      IpAddressType:
+        ref: LoadBalancerIPType
+      Name: DashQuestBalancer
+      Scheme:
+        ref: LoadBalancerScheme
+      SecurityGroups:
+        - !Ref ApplicationLoadBalancerSecurityGroup
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      Type:
+        ref: LoadBalancerType
+  Route53LoadBalancerAlias:
+    Type: 'AWS::Route53::RecordSet'
+    Properties:
+      Type: A
+      HostedZoneId: !Ref Route53HostedZoneID
+      Name: !Join 
+        - .
+        - - !Sub '${Route53Prefix}-origin'
+          - !Ref Route53HostedZoneDomainName
+      AliasTarget:
+        DNSName: !GetAtt 
+          - ApplicationLoadBalancer
+          - DNSName
+        HostedZoneId: !GetAtt 
+          - ApplicationLoadBalancer
+          - CanonicalHostedZoneID
+  ApplicationLoadBalancerTargetGroup:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Name: !Ref ServiceName
+      Port: '80'
+      Protocol: HTTP
+      VpcId: !Ref VPC
+      TargetType: ip
+    DependsOn: ApplicationLoadBalancer
+  ApplicationLoadBalancerListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      Certificates:
+        - !Ref ApplicationLoadBalancerCertificate
+      DefaultActions:
+        - Type: Forward
+          TargetGroupArn: !Ref ApplicationLoadBalancerTargetGroup
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DependsOn:
+        - ApplicationLoadBalancer
+        - ApplicationLoadBalancerTargetGroup
+  CloudFrontDistribution:
+    Type: 'AWS::CloudFront::Distribution'
+    Properties:
+      DistributionConfig:
+        Aliases:
+          - dashielllumas.quest.rearc.io
+        DefaultCacheBehavior:
+          ForwardedValues:
+            QueryString: false
+          TargetOriginId: !Ref CloudFrontRecordSet
+          ViewerProtocolPolicy: allow-all
+        Enabled: true
+        IPV6Enabled: false
+        Origins:
+          - CustomOriginConfig:
+              HTTPPort: 80
+              HTTPSPort: 443
+              OriginProtocolPolicy: match-viewer
+            DomainName: dashielllumas-origin.quest.rearc.io
+            Id: !Ref CloudFrontRecordSet
+    DependsOn:
+      - CloudFrontRecordSet
+  CloudFrontRecordSet:
+    Type: 'AWS::Route53::RecordSet'
+    Properties:
+      Type: A
+      HostedZoneId: !Ref Route53HostedZoneID
+      Name: !Join 
+        - .
+        - - !Sub '${Route53Prefix}'
+          - !Ref Route53HostedZoneDomainName
+      AliasTarget:
+        DNSName: dashielllumas-origin.quest.rearc.io
+        HostedZoneId: Z2FDTNDATAQYW2
+  CloudFrontCertificate:
+    Type: 'AWS::CertificateManager::Certificate'
+    Properties:
+      DomainName: dashielllumas.quest.rearc.io
+  ApplicationLoadBalancerCertificate:
+    Type: 'AWS::CertificateManager::Certificate'
+    Properties:
+      DomainName: dashielllumas-origin.quest.rearc.io
+  ApplicationLoadBalancerSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: application-load-balancer-sg
+      GroupDescription: Allow access on port 443 from 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          CidrIp: !FindInMap 
+            - SubnetConfig
+            - VPC
+            - CIDR
+          FromPort: 443
+          ToPort: 443
+      VpcId: !Ref VPC
+  ApplicationContainerSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: application-container-sg
+      GroupDescription: Allow incoming traffic from Application Load Balancer on port 80
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          CidrIp: !FindInMap 
+            - SubnetConfig
+            - VPC
+            - CIDR
+          FromPort: 1
+          ToPort: 1
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          CidrIp: !FindInMap 
+            - SubnetConfig
+            - VPC
+            - CIDR
+          FromPort: 80
+          ToPort: 80
+      VpcId: !Ref VPC

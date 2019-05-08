@@ -1,0 +1,14 @@
+[
+    {
+        "name": "dashielllumas-quest",
+        "image":"581656899580.dkr.ecr.us-east-2.amazonaws.com/dash-quest-app:latest",
+        "cpu": 256,
+        "memory": 512,
+        "portMappings": [
+            {
+                "containerPort": 80
+            }
+            
+        ]
+    }
+]
