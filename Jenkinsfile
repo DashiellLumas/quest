@@ -4,6 +4,15 @@ pipeline {
     SVC_ACCOUNT_KEY = credentials('terraform-auth')
   }
   stages {
+      stage('Set Terraform path'){
+          steps {
+              script{
+                  def tfHome = tool name: 'Terraform'
+                  env.PATH = "${tfHome}:${env.PATH}"
+              }
+              sh 'terraform --version'
+          }
+      }
       stage('TF Plan'){
           steps {
             //   container('terraform') {
